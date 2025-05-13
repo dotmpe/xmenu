@@ -835,7 +835,7 @@ loadresources(Widget *widget, const char *str)
 				strcasecmp(value, "ON") == 0 ||
 				strcasecmp(value, "TRUE") == 0 ||
 				strcasecmp(value, "1") == 0 ||
-				strcasestr(value, "ENABLED") != NULL
+				strcasecmp(value, "ENABLED") == 0
 			);
 		case NRESOURCES:
 			break;
@@ -848,7 +848,7 @@ loadresources(Widget *widget, const char *str)
 
 static int
 createpicture(Widget *widget, Picture *picture, Pixmap *pixmap,
-              XRenderColor *color, bool isalpha)
+							XRenderColor *color, bool isalpha)
 {
 	*pixmap = XCreatePixmap(
 		widget->display,
@@ -2008,7 +2008,8 @@ commitdraw(Widget *widget, Menu *menu, int ypos)
 }
 
 static bool
-selitem(Widget *widget, Menu *menu, Item *from, Item *first, Item *last, int ypos, int dir)
+selitem(Widget *widget, Menu *menu, Item *from, Item *first, Item *last,
+		int ypos, int dir)
 {
 	Item *item, *prev;
 	int prevypos;
@@ -2701,10 +2702,10 @@ xkeypress(Widget *widget, XEvent *xev)
 
 	if ((menu = widget->menus) == NULL)
 		return;
-  // This selects initial item but only on keyboard input. It doesnt feel like
-  // the right place to do this except idk the philosophy behind e.g
-  // if (widget->menus->selected == NULL) return;         /* no item selected */
-  // in popupmenu.
+	// This selects initial item but only on keyboard input. It doesnt feel like
+	// the right place to do this except i dont see the philosophy behind e.g if
+	// (widget->menus->selected == NULL) return;         /* no item selected */ in
+	// popupmenu.
 	if (!menu->selected) {
 		menu->selected = menu->first;
 	}
@@ -2726,8 +2727,8 @@ xkeypress(Widget *widget, XEvent *xev)
 	case XK_Tab:
 		first = menu->first;
 		last = menu->last;
-		start = menu->selected->next;
-		ypos = menu->selposition;
+		start = menu->selected ? menu->selected->next : first;
+		ypos = menu->selposition + (menu->selected && start ? widget->itemh : 0);
 		if (selitem(widget, menu, start, first, last, ypos, SEL_NEXT))
 			break;
 		/* fallthrough */
@@ -2738,8 +2739,8 @@ xkeypress(Widget *widget, XEvent *xev)
 	case XK_Up:
 		first = menu->first;
 		last = menu->last;
-		start = menu->selected->prev;
-		ypos = menu->selposition;
+		start = menu->selected ? menu->selected->prev : last;
+		ypos = menu->selposition - (menu->selected && start ? widget->itemh : 0);
 		if (selitem(widget, menu, start, first, last, ypos, SEL_PREV))
 			break;
 		/* fallthrough */
