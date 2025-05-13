@@ -2701,6 +2701,13 @@ xkeypress(Widget *widget, XEvent *xev)
 
 	if ((menu = widget->menus) == NULL)
 		return;
+  // This selects initial item but only on keyboard input. It doesnt feel like
+  // the right place to do this except idk the philosophy behind e.g
+  // if (widget->menus->selected == NULL) return;         /* no item selected */
+  // in popupmenu.
+	if (!menu->selected) {
+		menu->selected = menu->first;
+	}
 	xevent = (XKeyEvent *)xev;
 	ksym = XkbKeycodeToKeysym(widget->display, xevent->keycode, 0, 0);
 	if (ksym == XK_Tab && FLAG(xevent->state, ShiftMask))
