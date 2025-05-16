@@ -681,12 +681,15 @@ ctrlfnt_free(CtrlFontSet *fontset)
 		}
 		free(fontset->xft_fontset->fonts);
 		free(fontset->xft_fontset);
+		fontset->xft_fontset = NULL;
 	}
 	if (fontset->xlfd_fontset != NULL) {
 		XFreeFontSet(fontset->display, fontset->xlfd_fontset);
+		fontset->xlfd_fontset = NULL;
 	}
 	if (fontset->xlfd_font != NULL) {
 		XFreeFont(fontset->display, fontset->xlfd_font);
+		fontset->xlfd_font = NULL;
 	}
 	free(fontset);
 }

@@ -264,6 +264,23 @@ static Item tearoff = { .label = "tearoff" };
 static Item scrollup = { .label = "scrollup" };
 static Item scrolldown = { .label = "scrolldown" };
 
+#ifdef DEBUG
+#define DEBUG_PRINT(str) do { \
+	extern char *program_invocation_short_name; \
+	fprintf(stderr, "%s[%d]: " str, \
+		program_invocation_short_name, getpid()); \
+} while (0)
+#define DEBUG_PRINTF(fmt, ...) do { \
+	extern char *program_invocation_short_name; \
+	fprintf(stderr, "%s[%d]: " fmt, \
+		program_invocation_short_name, getpid() \
+		 __VA_OPT__(,) __VA_ARGS__); \
+} while (0)
+#else
+#define DEBUG_PRINT(str) do {} while (0)
+#define DEBUG_PRINTF(fmt, ...) do {} while (0)
+#endif
+
 static void
 usage(void)
 {
@@ -564,6 +581,7 @@ createwindow(Widget *widget, XRectangle *geometry, long eventmask, bool override
 static Item *
 allocitem(const char *label, const char *output, char *file)
 {
+	DEBUG_PRINTF("allocitem: label '%s' output '%s' file '%f'", label, output, file);
 	Item *item;
 
 	item = emalloc(sizeof *item);
@@ -1166,22 +1184,32 @@ cleanitems(Item *item, Item *skip)
 static void
 cleanup(Widget *widget)
 {
+	DEBUG_PRINTF("cleanup widget=%p fontset=%p display=%p\n", widget, widget->fontset, widget->display);
 	size_t i, j;
 
-	if (widget->fontset != NULL)
+	if (widget->fontset != NULL) {
+		DEBUG_PRINTF("freeing fontset=%p\n", widget->fontset);
 		ctrlfnt_free(widget->fontset);
+		DEBUG_PRINTF("freed fontset=%p\n", widget->fontset);
+		//widget->fontset = NULL;
+	}
 	for (i = 0; i < SCHEME_LAST; i++) for (j = 0; j < COLOR_LAST; j++) {
+		//DEBUG_PRINTF("cleanup: freeing color scheme %i\n", i);
 		if (widget->colors[i][j].pict != None) {
 			XRenderFreePicture(
 				widget->display,
 				widget->colors[i][j].pict
 			);
+			//widget->colors[i][j].pict = NULL;
+			//DEBUG_PRINTF("freed scheme pict %i %i\n", i, j);
 		}
 		if (widget->colors[i][j].pix != None) {
 			XFreePixmap(
 				widget->display,
 				widget->colors[i][j].pix
 			);
+			//widget->colors[i][j].pix = NULL;
+			//DEBUG_PRINTF("freed scheme pix %i %i\n", i, j);
 		}
 	}
 	if (widget->opacity.pict != None) {
@@ -1189,21 +1217,35 @@ cleanup(Widget *widget)
 			widget->display,
 			widget->opacity.pict
 		);
+		//widget->opacity.pict = NULL;
 	}
 	if (widget->opacity.pix != None) {
 		XFreePixmap(
 			widget->display,
 			widget->opacity.pix
 		);
+		//widget->opacity.pix = NULL;
 	}
-	if (widget->cursor != None)
+	if (widget->cursor != None) {
 		XFreeCursor(widget->display, widget->cursor);
-	if (widget->colormap != None)
+		//widget->cursor = NULL;
+	}
+	if (widget->colormap != None) {
 		XFreeColormap(widget->display, widget->colormap);
-	if (widget->window != None)
+		//widget->colormap = NULL;
+	}
+	if (widget->window != None) {
+		DEBUG_PRINTF("destroying window=%p\n", widget->window);
 		XDestroyWindow(widget->display, widget->window);
-	if (widget->display != NULL)
+		//widget->window = NULL;
+		DEBUG_PRINTF("destroyed window=%p\n", widget->window);
+	}
+	if (widget->display != NULL) {
+		DEBUG_PRINTF("closing display=%p\n", widget->display);
 		XCloseDisplay(widget->display);
+		DEBUG_PRINTF("closed display=%p\n", widget->display);
+	}
+	DEBUG_PRINT("cleanup done\n");
 }
 
 static void
@@ -2702,13 +2744,8 @@ xkeypress(Widget *widget, XEvent *xev)
 
 	if ((menu = widget->menus) == NULL)
 		return;
-	// This selects initial item but only on keyboard input. It doesnt feel like
-	// the right place to do this except i dont see the philosophy behind e.g if
-	// (widget->menus->selected == NULL) return;         /* no item selected */ in
-	// popupmenu.
-	if (!menu->selected) {
+	if (menu->selected == NULL)
 		menu->selected = menu->first;
-	}
 	xevent = (XKeyEvent *)xev;
 	ksym = XkbKeycodeToKeysym(widget->display, xevent->keycode, 0, 0);
 	if (ksym == XK_Tab && FLAG(xevent->state, ShiftMask))
@@ -2760,10 +2797,31 @@ xkeypress(Widget *widget, XEvent *xev)
 		break;
 	case XK_Right:
 	case XK_Return:
-		if (menu->selected == NULL)
+		DEBUG_PRINTF("XK_Return selected=%p\n", menu->selected);
+		if (menu->selected == NULL) {
+			// FIXME: cleanup, this cant/shouldnt happen anymore with menu->selected fix above
+			DEBUG_PRINTF("XK_Return label=%s output=%s children=%p\n",
+					menu->selected->label ? menu->selected->label : "(null)",
+					menu->selected->output ? menu->selected->output : "(null)",
+					menu->selected->children);
 			break;
-		openitem(widget, menu->selected, menu->selposition, false);
-		break;
+		}
+		// TODO: proper array non-empty check here
+		if (menu->selected->children) {
+			openitem(widget, menu->selected, menu->selposition, false);
+		} else {
+			if (menu->selected->output == NULL) {
+				DEBUG_PRINTF("expected output field on menu item %p: '%s'\n",
+				menu->selected,
+				menu->selected->label);
+				printf("%s\n", menu->selected->label);
+			} else {
+				printf("%s\n", menu->selected->output);
+			}
+                        // XXX: Didnt investigate what to do here much, it sort
+                        // of works
+			fflush(stdout); cleanup(widget); exit(0);
+		}
 	}
 }
 
@@ -2938,10 +2996,13 @@ main(int argc, char *argv[])
 		ungrab(&widget);
 	} while (options.rootmode);
 error:
+	DEBUG_PRINT("main: Error: cleanup start\n");
 	cleanup(&widget);
+	DEBUG_PRINT("main: Widget cleanup done\n");
 	free(options.iconstring);
 	if (options.freetitle)
 		free(options.title);
 	cleanitems(options.items, NULL);
+	DEBUG_PRINT("main: cleanup done\n");
 	return exitval;
 }

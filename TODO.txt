@@ -1,0 +1,29 @@
+# 2025-05-13 2025-05-16 BUG: using cursors crash xmenu (segfault) testfile:menu1 @fixed @closed \
+
+  Steps to reproduce:
+  - Start and try cursor keys, the program ends because of segmentation
+    fault (signal 11; SIGSEGV).
+
+  Explanation:
+  - xkeypress' use of menu->selected while NULL
+
+  Fix:
+  - set menu selected to menu first.
+
+  Evaluation:
+  - xmotion() always sets menu selected to item found for the y position.
+  - openitem() even sets selected again.
+
+  Conclusion:
+  Letting the key press event handler initialize the menu properly is wrong,
+  but then the 'selected' state is debatably a part of IO event handling.
+  Fix added to xkeypress.
+
+- 2025-05-16 BUG: Selecting item 1 by mouse, then pressing return gives segfault. \
+
+  Also other keyboard IO still results in segv despite previous fix.
+
+  This may be due also to the test format, as having one field seems to
+  guarantee this behavior often or nearly always while using more complex
+  menu's seems to mask this issue. Would explain it still existing. More
+  analysis needed.
